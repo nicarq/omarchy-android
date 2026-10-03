@@ -3,6 +3,11 @@
 An unofficial, rootless port of Omarchy to ARM64 Android using Termux,
 Termux:X11, PRoot Distro, Weston, and a patched native ARM64 Hyprland stack.
 
+This fork of [BlackFireAlex/omarchy-android](https://github.com/BlackFireAlex/omarchy-android)
+adds a current Termux:X11 app pin and a Weston compatibility path
+for Android 17 Pixels without Qualcomm KGSL. See the
+[Android 17 / Pixel setup and validation notes](docs/android-17-pixel.md).
+
 > [!IMPORTANT]
 > PRoot is a Linux compatibility layer, not a virtual machine or an additional
 > security boundary. Chromium's Linux process and GPU sandboxes are disabled
@@ -35,7 +40,14 @@ Install both of these on the phone:
 
 1. [Termux](https://github.com/termux/termux-app/releases/latest) from GitHub or
    F-Droid. Do not use the obsolete Play Store build.
-2. The [Termux:X11 nightly Android app](https://github.com/termux/termux-x11/releases/tag/nightly).
+2. The **standalone** [Termux:X11 nightly Android app](https://github.com/termux/termux-x11/releases/tag/nightly),
+   `termux-x11-universal-debug.apk`. The `sharedUid` variant targets an older
+   Android SDK and may trigger an additional Play Protect warning.
+
+For checksum-verified downloads of the app versions recorded by this fork,
+run `./scripts/download-android-apps.sh` on a computer. The script downloads
+the APKs to `dist/android-apps` without installing them or changing Android
+security settings. A changed nightly is rejected until its pin is reviewed.
 
 Open each app once after installing it.
 
@@ -59,7 +71,7 @@ Open Termux and paste these commands one line at a time:
 ```bash
 pkg update -y
 pkg install -y git
-git clone https://github.com/BlackFireAlex/omarchy-android.git
+git clone https://github.com/nicarq/omarchy-android.git
 cd omarchy-android
 ```
 

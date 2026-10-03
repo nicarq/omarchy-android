@@ -43,10 +43,14 @@ install_host_dependencies() {
     weston \
     pulseaudio \
     xorg-xwininfo \
-    mesa-vulkan-icd-freedreno \
     virglrenderer-android \
     tar \
     curl
+
+  if [[ "$OA_GPU" == kgsl ]] ||
+     { [[ "$OA_GPU" == auto ]] && [[ -r /dev/kgsl-3d0 && -w /dev/kgsl-3d0 ]]; }; then
+    pkg install -y mesa-vulkan-icd-freedreno
+  fi
 
   local required
   for required in proot-distro termux-x11 weston pulseaudio xwininfo tar sha256sum; do
@@ -66,7 +70,7 @@ download_release_bundle() {
   asset="$(release_field asset)" || die 'Release lock has no asset name.'
   target="$OA_INSTALL_TEMP/$asset"
 
-  info "Downloading verified stable ARM64 release"
+  info "Downloading verified stable ARM64 release" >&2
   if ! curl --fail --location --retry 3 --output "$target" "$url"; then
     die 'Release download failed. Check the network connection or pass a local file with --bundle PATH.'
   fi
@@ -142,7 +146,11 @@ write_runtime_config() {
     software) gpu_mode=virgl ;;
   esac
   resolution="$OA_RESOLUTION"
-  if [[ "$OA_REFRESH" == auto ]]; then refresh=120000; else refresh=$((OA_REFRESH * 1000)); fi
+  if [[ "$OA_REFRESH" == auto ]]; then
+    if [[ "$gpu_mode" == virgl ]]; then refresh=60000; else refresh=120000; fi
+  else
+    refresh=$((OA_REFRESH * 1000))
+  fi
   if [[ "$OA_AUDIO" == true ]]; then audio=1; else audio=0; fi
 
   cat > "$OA_PREFIX/config/runtime.conf" <<EOF
@@ -170,6 +178,7 @@ install_host_runtime() {
     "$PROJECT_ROOT/runtime/host/omarchy-android-status" \
     "$PROJECT_ROOT/runtime/host/omarchy-android-hyprctl" \
     "$OA_PREFIX/bin/"
+  install -m 0644 "$PROJECT_ROOT/lib/graphics.sh" "$OA_PREFIX/bin/omarchy-android-graphics.sh"
   install -m 0755 \
     "$unpacked/host/bin/omarchy-process-guard" \
     "$unpacked/host/bin/omarchy-x11-keyboard" \

@@ -10,7 +10,9 @@ architectures.
   available, otherwise it selects the software fallback.
 - `--gpu kgsl` requires direct KGSL acceleration and fails instead of silently
   falling back.
-- `--gpu software` is the compatibility path.
+- `--gpu software` is the VirGL/pixman compatibility path. It uses the X11
+  backend from the installed Termux Weston package, avoiding a bundled
+  Weston 14 / current Weston ABI mismatch. Automatic refresh is 60 Hz here.
 
 On supported Adreno devices, Chromium renders through ANGLE/Vulkan and the
 pinned Turnip driver, with XWayland used only for local presentation. PRoot

@@ -1,0 +1,4 @@
+# Official APKs verified 2026-10-03. Nightly URLs are mutable; reject changed hashes.
+# name|filename|target_sdk|url|sha256
+termux|termux-app_v0.118.3+github-debug_arm64-v8a.apk|28|https://github.com/termux/termux-app/releases/download/v0.118.3/termux-app_v0.118.3%2Bgithub-debug_arm64-v8a.apk|72fdb596045116bf5ba1b5bdf5b26fddb9acc0bd074ad9f2da9eb0ae85e83a4e
+termux-x11|termux-x11-universal-debug.apk|34|https://github.com/termux/termux-x11/releases/download/nightly/termux-x11-universal-debug.apk|97e1c5d471cbb6af84267d7d2d3c475f3862ad2cc2aecebfe98ed0097a0164c0

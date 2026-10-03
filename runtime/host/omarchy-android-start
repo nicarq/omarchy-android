@@ -22,6 +22,8 @@ unlimited_processes=0
 # Direct Freedreno/KGSL passed both Vulkan and EGL draw/present tests on this
 # Adreno 840. Keep virgl available only as an explicit recovery fallback.
 gpu_mode="${OMARCHY_GPU_MODE:-kgsl}"
+hyprland_dmabuf_default=0
+if [[ "$gpu_mode" == kgsl ]]; then hyprland_dmabuf_default=1; fi
 # Chromium's GBM path and the compositor must use the same Mesa memory model
 # for zero-copy DMA-BUF import.  Keep this independently selectable while the
 # Zink-on-Turnip compositor path is validated against the direct KGSL fallback.
@@ -35,7 +37,7 @@ hyprland_stage="${OMARCHY_HYPRLAND_STAGE:-/opt/omarchy-android/hyprland}"
 android_dmabuf_heap="${OMARCHY_ANDROID_DMABUF_HEAP:-0}"
 android_dmabuf_glfinish="${OMARCHY_ANDROID_DMABUF_GLFINISH:-0}"
 android_dmabuf_vulkan="${OMARCHY_ANDROID_DMABUF_VULKAN:-0}"
-hyprland_android_dmabuf="${OMARCHY_HYPRLAND_ANDROID_DMABUF:-1}"
+hyprland_android_dmabuf="${OMARCHY_HYPRLAND_ANDROID_DMABUF:-$hyprland_dmabuf_default}"
 # SHM output is the compatibility path used when the nested Wayland backend
 # cannot import a GPU buffer directly. Keep synchronization, damage-limited
 # copies, and profiling independently switchable while experimental builds are
@@ -43,10 +45,9 @@ hyprland_android_dmabuf="${OMARCHY_HYPRLAND_ANDROID_DMABUF:-1}"
 hyprland_shm_glfinish="${HYPRLAND_SHM_GLFINISH:-0}"
 hyprland_shm_damage="${HYPRLAND_SHM_DAMAGE:-1}"
 hyprland_shm_profile="${HYPRLAND_SHM_PROFILE:-0}"
-hyprland_gl_dmabuf_export="${HYPRLAND_GL_DMABUF_EXPORT:-1}"
-# Optional staged X11 backend. The Android build derives its output cadence
-# from Termux:X11's active XRandR mode instead of Weston's fixed 60 Hz mode.
-weston_x11_module="${OMARCHY_WESTON_X11_MODULE:-$script_dir/../opt/weston/lib/libweston-14/x11-backend.so}"
+hyprland_gl_dmabuf_export="${HYPRLAND_GL_DMABUF_EXPORT:-$hyprland_dmabuf_default}"
+# shellcheck source=lib/graphics.sh
+source "$script_dir/omarchy-android-graphics.sh"
 refresh_mhz="${OMARCHY_REFRESH_MHZ:-120000}"
 ui_scale="${OMARCHY_SCALE:-2}"
 share_mode="${OMARCHY_SHARE:-none}"
@@ -294,6 +295,8 @@ if [[ ! -x "$rootfs$hyprland_stage/bin/Hyprland" ]]; then
 fi
 
 weston_module_env=()
+weston_x11_module="$(select_weston_x11_module "$gpu_mode" \
+  "$script_dir/../opt/weston/lib/libweston-14/x11-backend.so")"
 if [[ -n "$weston_x11_module" ]]; then
   if [[ ! -f "$weston_x11_module" ]]; then
     echo "The selected Weston X11 backend is missing: $weston_x11_module" >&2

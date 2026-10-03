@@ -31,8 +31,9 @@ Git repositories beside this project, each with an `upstream` remote and an
 ## Runtime layers
 
 1. Termux:X11 owns the Android surface and input bridge.
-2. Patched Weston provides a nested Wayland parent with accurate XRandR refresh
-   timing.
+2. Weston provides the nested Wayland parent. KGSL uses the patched Weston 14
+   backend for XRandR refresh timing; compatibility mode uses pixman and the
+   backend shipped with the installed Termux Weston package.
 3. Patched Aquamarine/Hyprland handle the Android/KGSL buffer constraints.
 4. Omarchy Shell supplies the bar, launcher, notifications, and OSD.
 5. Applications use native ARM64 binaries inside PRoot. The shell and regular
