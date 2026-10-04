@@ -1,0 +1,165 @@
+diff --git a/src/btop_draw.cpp b/src/btop_draw.cpp
+index fbc99c0..67cc461 100644
+--- a/src/btop_draw.cpp
++++ b/src/btop_draw.cpp
+@@ -546,6 +546,14 @@ namespace Cpu {
+ 		bool data_same
+ 	) {
+ 		if (Runner::stopping) return "";
++		if (Shared::android_proot) {
++			if (not (redraw or force_redraw)) return "";
++			redraw = false;
++			return Draw::createBox(x, y, width, height, Theme::c("cpu_box"), true, "Android", "", 1)
++				+ Mv::to(y + 2, x + 2) + Theme::c("main_fg") + "System CPU and sensors: unavailable on Android"
++				+ Mv::to(y + 3, x + 2) + "Process CPU: measured from readable tasks"
++				+ Mv::to(y + 4, x + 2) + "Memory: system-wide | Processes: Termux only" + Fx::reset;
++		}
+ 		if (force_redraw) redraw = true;
+ 		bool show_temps = (Config::getB("check_temp") and got_sensors);
+ 		bool show_watts = (Config::getB("show_cpu_watts") and supports_watts);
+@@ -1467,6 +1475,12 @@ namespace Net {
+ 
+ 	string draw(const net_info& net, bool force_redraw, bool data_same) {
+ 		if (Runner::stopping) return "";
++		if (Shared::android_proot) {
++			if (not (redraw or force_redraw)) return "";
++			redraw = false;
++			return Draw::createBox(x, y, width, height, Theme::c("net_box"), true, "net", "", 3)
++				+ Mv::to(y + 2, x + 2) + Theme::c("main_fg") + "Unavailable on Android" + Fx::reset;
++		}
+ 		if (force_redraw) redraw = true;
+ 		auto net_sync = Config::getB("net_sync");
+ 		auto net_auto = Config::getB("net_auto");
+diff --git a/src/btop_shared.hpp b/src/btop_shared.hpp
+index c35a681..549c113 100644
+--- a/src/btop_shared.hpp
++++ b/src/btop_shared.hpp
+@@ -21,6 +21,7 @@ tab-size = 4
+ #include <array>
+ #include <atomic>
+ #include <cstdint>
++#include <cstdlib>
+ #include <deque>
+ #include <filesystem>
+ #include <optional>
+@@ -89,6 +90,11 @@ namespace Tools {
+ }
+ 
+ namespace Shared {
++	inline const bool android_proot = [] {
++		const char* value = std::getenv("BTOP_ANDROID_PROOT");
++		return value && std::string_view(value) == "1";
++	}();
++
+ 	//* Initialize platform specific needed variables and check for errors
+ 	void init();
+ 
+diff --git a/src/linux/btop_collect.cpp b/src/linux/btop_collect.cpp
+index 64eaffe..0318595 100644
+--- a/src/linux/btop_collect.cpp
++++ b/src/linux/btop_collect.cpp
+@@ -39,6 +39,7 @@ tab-size = 4
+ #include <netdb.h>
+ #include <sys/statvfs.h>
+ #include <unistd.h>
++#include <time.h>
+ 
+ #include <fmt/format.h>
+ #include <fmt/std.h>
+@@ -357,12 +358,12 @@ namespace Shared {
+ 		for (auto& [field, vec] : Cpu::current_cpu.cpu_percent) {
+ 			if (not vec.empty() and not v_contains(Cpu::available_fields, field)) Cpu::available_fields.push_back(field);
+ 		}
+-		Cpu::cpuName = Cpu::get_cpuName();
+-		Cpu::got_sensors = Cpu::get_sensors();
++		Cpu::cpuName = android_proot ? "Android" : Cpu::get_cpuName();
++		Cpu::got_sensors = not android_proot and Cpu::get_sensors();
+ 		for (const auto& [sensor, ignored] : Cpu::found_sensors) {
+ 			Cpu::available_sensors.push_back(sensor);
+ 		}
+-		Cpu::core_mapping = Cpu::get_core_mapping();
++		if (not android_proot) Cpu::core_mapping = Cpu::get_core_mapping();
+ 
+ 		Cpu::container_engine = detect_container();
+ 
+@@ -445,7 +446,7 @@ namespace Cpu {
+ 				getline(cpuinfo, name);
+ 			}
+ 			else if (fs::exists("/sys/devices")) {
+-				for (const auto& d : fs::directory_iterator("/sys/devices")) {
++				for (const auto& d : fs::directory_iterator("/sys/devices", fs::directory_options::skip_permission_denied)) {
+ 					if (string(d.path().filename()).starts_with("arm")) {
+ 						name = d.path().filename();
+ 						break;
+@@ -1078,6 +1079,7 @@ namespace Cpu {
+     }
+ 
+ 	auto collect(bool no_update) -> cpu_info& {
++		if (Shared::android_proot) return current_cpu;
+ 		if (Runner::stopping or (no_update and not current_cpu.cpu_percent.at("total").empty())) return current_cpu;
+ 		auto& cpu = current_cpu;
+ 
+@@ -2674,6 +2676,7 @@ namespace Net {
+ 	uint64_t timestamp{};
+ 
+ 	auto collect(bool no_update) -> net_info& {
++		if (Shared::android_proot) return empty_net;
+ 		if (Runner::stopping) return empty_net;
+ 		auto& net = current_net;
+ 		auto& config_iface = Config::getS("net_iface");
+@@ -3064,16 +3067,22 @@ namespace Proc {
+ 				pread.close();
+ 			}
+ 
+-			//? Get cpu total times from /proc/stat up to the guest field
+-			cputimes = 0;
+-			pread.open(Shared::procPath / "stat");
+-			if (pread.good()) {
+-				pread.ignore(SSmax, ' ');
+-				int i = 0;
+-				for (uint64_t times; i < 8 and pread >> times; cputimes += times, i++);
++			// Android hides /proc/stat; PRoot may substitute static sample data.
++			// Use elapsed boot-clock ticks as process CPU capacity instead.
++			if (Shared::android_proot) {
++				cputimes = static_cast<uint64_t>(uptime * Shared::clkTck * Shared::coreCount);
++			} else {
++				//? Get cpu total times from /proc/stat up to the guest field
++				cputimes = 0;
++				pread.open(Shared::procPath / "stat");
++				if (pread.good()) {
++					pread.ignore(SSmax, ' ');
++					int i = 0;
++					for (uint64_t times; i < 8 and pread >> times; cputimes += times, i++);
++				}
++				else throw std::runtime_error("Failure to read /proc/stat");
++				pread.close();
+ 			}
+-			else throw std::runtime_error("Failure to read /proc/stat");
+-			pread.close();
+ 
+ 			//? Iterate over all pids in /proc
+ 			for (const auto& d: fs::directory_iterator(Shared::procPath)) {
+@@ -3091,6 +3100,10 @@ namespace Proc {
+ 					continue;
+ 				}
+ 
++				if (Shared::android_proot and
++					(access((d.path() / "stat").c_str(), R_OK) != 0 or
++					 access((d.path() / "comm").c_str(), R_OK) != 0)) continue;
++
+ 				found.push_back(pid);
+ 
+ 				//? Check if pid already exists in current_procs
+@@ -3409,6 +3422,12 @@ namespace Proc {
+ 
+ namespace Tools {
+ 	double system_uptime() {
++		if (Shared::android_proot) {
++			struct timespec now {};
++			if (clock_gettime(CLOCK_BOOTTIME, &now) != 0)
++				throw std::runtime_error("Could not read Android boot clock");
++			return now.tv_sec + now.tv_nsec / 1e9;
++		}
+ 		string upstr;
+ 		ifstream pread(Shared::procPath / "uptime");
+ 		if (pread.good()) {

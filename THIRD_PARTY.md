@@ -5,6 +5,15 @@ runtime integration, build orchestration, tests, and documentation in this
 repository. It does not replace the licenses of Omarchy or any bundled
 dependency.
 
+## Optional btop build
+
+[`extras/btop`](extras/btop/README.md) provides an optional Android patch for
+[aristocratos/btop](https://github.com/aristocratos/btop), v1.4.7 commit
+`6e39144aaf5a6bc01b9f795010b0914431067183`, licensed under Apache-2.0.
+Its installer fetches the source and retains the upstream license, applied
+patch, source revision, and binary checksum in the guest. This component is
+not included in the pinned prebuilt rootfs or its package inventory.
+
 ## Patched upstream components
 
 Exact upstream URLs and revisions are recorded in

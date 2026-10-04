@@ -90,6 +90,22 @@ and pointer capture. A successful installation does not prove those features
 or suspend/resume behavior; verify them on the actual phone. No global memory
 limit or audio protection is changed by this fork.
 
+## btop permission error
+
+Stock btop can crash in `Shared::init()` while opening `/sys/devices`.
+The optional [Android btop build](../extras/btop/README.md) skips blocked
+hardware probes and displays only accessible data. In Termux, run:
+
+```bash
+./scripts/install-btop-android.sh
+```
+
+Then open a new Omarchy terminal and run `btop`. System memory and Termux
+process CPU/memory readings work; system CPU, sensors, and network throughput
+are marked unavailable. PRoot supplies static sample values for some blocked
+`/proc` files, so the patch uses the actual boot clock for process CPU timing.
+It does not change Android permissions or require a different GPU driver.
+
 ## Validation record
 
 Device checks on 2026-10-03: Pixel 11 Pro Fold, Android 17 / API 37, ARM64,
@@ -116,6 +132,11 @@ PowerVR graphics, 4096-byte kernel pages. No device identifiers are recorded.
   No apps or compositor processes were restarted during these checks.
 - Enabling the full inner display produced 1728x1793 at scale 2; the odd
   height is supported through rounded logical dimensions.
+- The optional btop installer fetched its pinned source, applied the Android
+  patch, compiled ARM64, and passed all-panel refresh/resize/exit tests.
+  The installed launcher then ran in the existing Foot window, showing
+  15.2 GiB system RAM and 23 readable Termux processes with changing CPU
+  percentages. Android-restricted statistics were marked unavailable.
 - Audio, Chromium rendering, fold/unfold transitions, suspend/resume, and
   sustained performance have not been validated.
 
