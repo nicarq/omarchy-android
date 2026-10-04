@@ -30,6 +30,15 @@ write_runtime_config
 grep -Fx 'OMARCHY_REFRESH_MHZ=90000' "$OA_PREFIX/config/runtime.conf" >/dev/null
 
 unset OMARCHY_WESTON_X11_MODULE
+[[ "$(auto_display_scale 1080 2342 1920)" == 130 ]]
+[[ "$(auto_display_scale 2076 2152 1920)" == 120 ]]
+[[ "$(auto_display_scale 2152 2076 1920)" == 120 ]]
+[[ "$(auto_display_scale 1280 800 1920)" == 100 ]]
+[[ "$(auto_display_scale 1920 1080 1920)" == 100 ]]
+if auto_display_scale 1080 2342 0 2>/dev/null; then
+  printf 'Accepted an invalid display target\n' >&2
+  exit 1
+fi
 weston() { printf 'weston 16.0.0\n'; }
 [[ -z "$(select_weston_x11_module virgl /bundled/libweston-14/x11-backend.so)" ]]
 if select_weston_x11_module kgsl /bundled/libweston-14/x11-backend.so 2>/dev/null; then

@@ -64,6 +64,27 @@ ABI-matching module. An explicitly empty value selects Weston's own module.
 The default stock compatibility backend advertises 60 Hz; a different
 requested guest refresh does not guarantee a different presentation rate.
 
+## Foldable display resizing
+
+The original launcher sampled the screen once, saved a fixed custom X11
+resolution, and left Weston at its initial window size. Unfolding or rotating
+could therefore leave a narrow desktop or a clipped portrait window.
+
+On the native Weston 16+ backend, automatic resolution now uses Termux:X11's
+scaled mode, preserving the current Android surface shape. The native
+`omarchy-x11-resize` helper listens for X11 geometry events and resizes only
+the selected Weston window. It sleeps while the display is unchanged, exits
+when that window closes, and is stopped with the Omarchy stack. Hyprland uses
+the preferred mode reported by its parent instead of a startup-only mode.
+After a resize, a bounded callback waits for Hyprland's matching mode and
+reapplies its monitor rule so existing workspace windows also rearrange.
+Fullscreen includes the camera-cutout area, and Hyprland retains the chosen
+UI scale even when Android supplies an odd number of display pixels.
+The installer compiles this small helper with Termux clang and libX11.
+
+This does not replace the GPU driver or restart applications on a resize.
+The bundled Weston 14 backend retains the previous startup-only behavior.
+
 Android 17 also changes memory limits, background audio, keyboard restoration,
 and pointer capture. A successful installation does not prove those features
 or suspend/resume behavior; verify them on the actual phone. No global memory
@@ -86,6 +107,15 @@ PowerVR graphics, 4096-byte kernel pages. No device identifiers are recorded.
   `uname -m` returned `aarch64`. Hyprland reported no configuration errors.
 - A complete stop and restart passed with the final mode-specific defaults
   and normal logging. Omarchy Shell and Foot started again.
+- Live resize checks with Weston 16: X11, Weston and Hyprland agreed on
+  1728x1660, changed to 1592x1532, and returned to 1728x1660. Both existing
+  Foot processes retained their PIDs. Startup scale calculations passed
+  folded, unfolded, rotated, and already-small display cases.
+- An aspect-ratio change to 960x1920 rearranged both existing terminals to
+  456x910 logical pixels; returning to 1728x1660 rearranged them to 840x780.
+  No apps or compositor processes were restarted during these checks.
+- Enabling the full inner display produced 1728x1793 at scale 2; the odd
+  height is supported through rounded logical dimensions.
 - Audio, Chromium rendering, fold/unfold transitions, suspend/resume, and
   sustained performance have not been validated.
 

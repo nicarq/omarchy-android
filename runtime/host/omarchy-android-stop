@@ -32,6 +32,7 @@ stop_one() {
 }
 
 stop_one guard omarchy-process-guard
+stop_one resize omarchy-x11-resize
 stop_one proot "$container"
 stop_one virgl virgl_test_server_android
 stop_one weston weston
@@ -68,6 +69,7 @@ stop_orphans "--rootfs=" "/containers/$container/rootfs"
 stop_orphans "virgl_test_server_android" "/data/data/com.termux/r/.virgl-omarchy"
 stop_orphans "weston" "--socket=wayland-omarchy"
 stop_orphans "omarchy-process-guard" "$state_dir"
+stop_orphans "omarchy-x11-resize" "$state_dir/geometry"
 stop_orphans "pulseaudio -n --daemonize=yes" "--log-target=file:$state_dir/pulse.log"
 
 # PipeWire probes have previously escaped a short-lived diagnostic PRoot and
@@ -114,7 +116,7 @@ rm -f \
   "$runtime/wayland-omarchy" "$runtime/wayland-omarchy.lock" \
   "$runtime/wayland-1" "$runtime/wayland-1.lock" \
   "$runtime/.virgl-omarchy" \
-  "$state_dir/guard.pid" "$state_dir/proot.pid" "$state_dir/virgl.pid" "$state_dir/weston.pid"
+  "$state_dir/guard.pid" "$state_dir/resize.pid" "$state_dir/proot.pid" "$state_dir/virgl.pid" "$state_dir/weston.pid"
 
 # These are IPC/cache trees inside the dedicated short runtime, never user
 # data. Removing stale instance sockets prevents control commands from binding

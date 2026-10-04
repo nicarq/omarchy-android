@@ -24,9 +24,14 @@ Android's Termux application sandbox remains in effect; see
 GPU rendering does not imply hardware media decoding. Chromium video decode
 and encode remain software paths in `v0.1.0`.
 
-Resolution defaults to the current unfolded/folded Android window geometry,
-preserves its aspect ratio, and caps the long edge at 1920 pixels for smooth
-rendering. Explicit modes use `WIDTHxHEIGHT`. Refresh can be automatic or
+With the native Weston 16+ backend, automatic resolution follows the Android
+window as it folds, unfolds, or rotates. Startup selects Termux:X11 scaling
+to target a long edge of at most 1920 pixels on the starting screen; that
+percentage stays constant during the session so the aspect ratio can change.
+The resize listener updates Weston without restarting the desktop or its apps.
+The bundled Weston 14 backend retains its startup resolution and long-edge cap.
+Explicit modes use `WIDTHxHEIGHT` and follow orientation rather than panel shape.
+Refresh can be automatic or
 30-240 Hz. Scale affects logical UI size, not the physical output pixel count.
 
 `--keyboard auto` maps French Android locales to `fr` and otherwise uses `us`.

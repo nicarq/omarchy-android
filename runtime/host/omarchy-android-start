@@ -295,6 +295,7 @@ if [[ ! -x "$rootfs$hyprland_stage/bin/Hyprland" ]]; then
 fi
 
 weston_module_env=()
+live_resize=0
 weston_x11_module="$(select_weston_x11_module "$gpu_mode" \
   "$script_dir/../opt/weston/lib/libweston-14/x11-backend.so")"
 if [[ -n "$weston_x11_module" ]]; then
@@ -303,6 +304,16 @@ if [[ -n "$weston_x11_module" ]]; then
     exit 1
   fi
   weston_module_env=("WESTON_MODULE_MAP=x11-backend.so=$weston_x11_module")
+else
+  weston_version="$(weston --version)"
+  if [[ "$weston_version" =~ ^weston[[:space:]]+([0-9]+)\. ]] &&
+     (( BASH_REMATCH[1] >= 16 )); then
+    live_resize=1
+    if [[ ! -x "$script_dir/omarchy-x11-resize" || ! -x "$script_dir/omarchy-android-reflow" ]]; then
+      echo 'Missing display resize helpers; update the host runtime.' >&2
+      exit 1
+    fi
+  fi
 fi
 if [[ ! "$refresh_mhz" =~ ^[0-9]+$ ]] || (( refresh_mhz < 30000 || refresh_mhz > 240000 )); then
   echo "OMARCHY_REFRESH_MHZ must be between 30000 and 240000." >&2
@@ -329,7 +340,7 @@ launch_detached() {
     log_file="$2"
     shift 2
     printf "%s\n" "$$" > "$pid_file"
-    exec "$@" >> "$log_file" 2>&1
+    exec "$@" </dev/null >> "$log_file" 2>&1
   ' omarchy-detach "$pid_file" "$log_file" "$@"
   for _ in {1..50}; do
     [[ -s "$pid_file" ]] && return 0
@@ -349,8 +360,8 @@ fi
 "$script_dir/omarchy-android-stop" --keep-x >/dev/null 2>&1 || true
 
 # Auto starts with Termux:X11's current native Android surface. After the app
-# is attached, the long edge is capped without changing aspect ratio so dense
-# phone/tablet panels do not impose needless compositor work. An explicit WxH
+# is attached, scaling targets a 1920-pixel long edge without freezing the
+# surface dimensions across folds. An explicit WxH
 # remains exact and Termux:X11 swaps it automatically when orientation changes.
 display_resolution="${OMARCHY_DISPLAY_RESOLUTION:-auto}"
 if [[ "$display_resolution" != auto && ! "$display_resolution" =~ ^[0-9]+x[0-9]+$ ]]; then
@@ -383,6 +394,7 @@ termux-x11-preference \
   "extra_keys_config:[['ESC','TAB','CTRL','ALT','META','SHIFT','ENTER','BACKSPACE'],['KEYBOARD','HOME','LEFT','DOWN','UP','RIGHT','END','PREFERENCES']]" \
   "forceOrientation:auto" \
   "fullscreen:true" \
+  "hideCutout:true" \
   "adjustResolution:true" \
   "${resolution_preferences[@]}" \
   "displayStretch:false" >/dev/null
@@ -463,29 +475,38 @@ if [[ "$display_resolution" == auto ]]; then
     echo "OMARCHY_AUTO_LONG_EDGE must be between 1280 and 3840." >&2
     exit 1
   fi
-  target_width="$width"
-  target_height="$height"
-  if (( width >= height && width > auto_long_edge )); then
-    target_width="$auto_long_edge"
-    target_height=$(( (height * auto_long_edge + width / 2) / width ))
-    target_height=$(( target_height / 2 * 2 ))
-  elif (( height > width && height > auto_long_edge )); then
-    target_height="$auto_long_edge"
-    target_width=$(( (width * auto_long_edge + height / 2) / height ))
-    target_width=$(( target_width / 2 * 2 ))
-  fi
-
-  if (( target_width != width || target_height != height )); then
-    display_resolution="${target_width}x${target_height}"
+  if (( live_resize == 1 )); then
+    display_scale="$(auto_display_scale "$width" "$height" "$auto_long_edge")"
     termux-x11-preference \
-      "adjustResolution:true" \
-      "displayResolutionMode:custom" \
-      "displayResolutionCustom:$display_resolution" \
-      "displayStretch:false" >/dev/null
+      "displayResolutionMode:scaled" "displayScale:$display_scale" >/dev/null
     read_stable_geometry
     read -r width height <<< "$geometry"
+    display_resolution="auto (scaled ${display_scale}%)"
   else
-    display_resolution="${width}x${height}"
+    target_width="$width"
+    target_height="$height"
+    if (( width >= height && width > auto_long_edge )); then
+      target_width="$auto_long_edge"
+      target_height=$(( (height * auto_long_edge + width / 2) / width ))
+      target_height=$(( target_height / 2 * 2 ))
+    elif (( height > width && height > auto_long_edge )); then
+      target_height="$auto_long_edge"
+      target_width=$(( (width * auto_long_edge + height / 2) / height ))
+      target_width=$(( target_width / 2 * 2 ))
+    fi
+
+    if (( target_width != width || target_height != height )); then
+      display_resolution="${target_width}x${target_height}"
+      termux-x11-preference \
+        "adjustResolution:true" \
+        "displayResolutionMode:custom" \
+        "displayResolutionCustom:$display_resolution" \
+        "displayStretch:false" >/dev/null
+      read_stable_geometry
+      read -r width height <<< "$geometry"
+    else
+      display_resolution="${width}x${height}"
+    fi
   fi
 fi
 printf '%s\n' "$display_resolution" > "$state_dir/display-resolution"
@@ -537,6 +558,19 @@ if [[ ! -S "$runtime/wayland-omarchy" ]]; then
   echo "Weston did not become ready; see $state_dir/weston.log" >&2
   "$script_dir/omarchy-android-stop" --keep-x >/dev/null 2>&1 || true
   exit 1
+fi
+
+if (( live_resize == 1 )); then
+  weston_window="$(DISPLAY="$display_number" xwininfo -root -tree |
+    awk '/"Weston Compositor"/{print $1; exit}')"
+  if [[ ! "$weston_window" =~ ^0x[0-9a-fA-F]+$ ]]; then
+    echo 'Cannot find the Weston window for display resizing.' >&2
+    "$script_dir/omarchy-android-stop" --keep-x >/dev/null 2>&1 || true
+    exit 1
+  fi
+  launch_detached "$state_dir/resize.pid" "$state_dir/resize.log" \
+    env DISPLAY="$display_number" "$script_dir/omarchy-x11-resize" \
+    "$weston_window" "$state_dir/geometry" "$script_dir/omarchy-android-reflow"
 fi
 
 if [[ "$gpu_mode" == "virgl" ]]; then

@@ -14,7 +14,7 @@ running=0
 gpu_mode="unknown"
 [[ -r "$state_dir/gpu-mode" ]] && read -r gpu_mode < "$state_dir/gpu-mode"
 
-for item in "x11:termux-x11" "guard:omarchy-process-guard" "weston:weston" "virgl:virgl_test_server_android" "proot:$container"; do
+for item in "x11:termux-x11" "guard:omarchy-process-guard" "weston:weston" "resize:omarchy-x11-resize" "virgl:virgl_test_server_android" "proot:$container"; do
   name="${item%%:*}"
   expected="${item#*:}"
   if [[ "$name" == "guard" && "$(getprop persist.sys.fflag.override.settings_enable_monitor_phantom_procs 2>/dev/null)" == "false" ]]; then

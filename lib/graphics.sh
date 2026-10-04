@@ -21,3 +21,21 @@ select_weston_x11_module() {
     *) printf 'Unsupported GPU mode: %s\n' "$mode" >&2; return 1 ;;
   esac
 }
+
+auto_display_scale() {
+  local width="$1" height="$2" long_edge="$3" largest scale
+  if [[ ! "$width" =~ ^[0-9]+$ || ! "$height" =~ ^[0-9]+$ ||
+        ! "$long_edge" =~ ^[0-9]+$ ]] ||
+     (( width < 1 || height < 1 || long_edge < 1280 || long_edge > 3840 )); then
+    printf 'Invalid automatic display dimensions or long-edge target.\n' >&2
+    return 1
+  fi
+  largest="$width"
+  (( height <= largest )) || largest="$height"
+  # Termux:X11 accepts scale percentages in steps of ten, from 30 to 300.
+  scale=$(( (largest * 10 + long_edge - 1) / long_edge ))
+  scale=$(( scale * 10 ))
+  (( scale >= 100 )) || scale=100
+  (( scale <= 300 )) || scale=300
+  printf '%s\n' "$scale"
+}

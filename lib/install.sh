@@ -44,6 +44,9 @@ install_host_dependencies() {
     pulseaudio \
     xorg-xwininfo \
     virglrenderer-android \
+    clang \
+    pkg-config \
+    libx11 \
     tar \
     curl
 
@@ -177,12 +180,18 @@ install_host_runtime() {
     "$PROJECT_ROOT/runtime/host/omarchy-android-stop" \
     "$PROJECT_ROOT/runtime/host/omarchy-android-status" \
     "$PROJECT_ROOT/runtime/host/omarchy-android-hyprctl" \
+    "$PROJECT_ROOT/runtime/host/omarchy-android-reflow" \
     "$OA_PREFIX/bin/"
   install -m 0644 "$PROJECT_ROOT/lib/graphics.sh" "$OA_PREFIX/bin/omarchy-android-graphics.sh"
   install -m 0755 \
     "$unpacked/host/bin/omarchy-process-guard" \
     "$unpacked/host/bin/omarchy-x11-keyboard" \
     "$OA_PREFIX/bin/"
+  local -a x11_flags
+  read -r -a x11_flags <<<"$(pkg-config --cflags --libs x11)"
+  clang -std=c11 -O2 -Wall -Wextra -Wpedantic \
+    "$PROJECT_ROOT/runtime/host/src/x11-resize.c" "${x11_flags[@]}" \
+    -o "$OA_PREFIX/bin/omarchy-x11-resize"
   install -m 0755 \
     "$unpacked/host/opt/weston/lib/libweston-14/x11-backend.so" \
     "$OA_PREFIX/opt/weston/lib/libweston-14/x11-backend.so"

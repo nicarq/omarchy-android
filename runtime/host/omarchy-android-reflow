@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+width="${1:-}" height="${2:-}"
+[[ "$width" =~ ^[0-9]+$ && "$height" =~ ^[0-9]+$ ]] || exit 2
+
+# The nested backend updates its mode before this Hyprland build rearranges
+# workspaces. Reapply the monitor rule after the Wayland configure arrives.
+for _ in {1..5}; do
+  monitors="$(timeout --kill-after=1 5 "$script_dir/omarchy-android-hyprctl" monitors 2>/dev/null)" || exit 0
+  if grep -Eq "^[[:space:]]+${width}x${height}@" <<<"$monitors"; then
+    exec timeout --kill-after=1 5 "$script_dir/omarchy-android-hyprctl" eval "
+      for _, monitor in ipairs(hl.get_monitors()) do
+        if monitor.name == 'WAYLAND-1' and monitor.width == $width and monitor.height == $height then
+          hl.monitor({ output = '', mode = 'preferred', position = 'auto',
+                       scale = monitor.scale, transform = monitor.transform })
+        end
+      end"
+  fi
+  sleep 0.1
+done
+echo "Hyprland did not reach ${width}x${height} before reflow." >&2
+exit 1

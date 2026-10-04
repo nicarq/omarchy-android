@@ -38,4 +38,9 @@ read -r -a x11_flags <<<"$(pkg-config --cflags --libs x11)"
   "${x11_flags[@]}" \
   -o "$output_dir/omarchy-x11-keyboard"
 
+"$compiler" -std=c11 -O2 -Wall -Wextra -Wpedantic \
+  "$script_dir/src/x11-resize.c" \
+  "${x11_flags[@]}" \
+  -o "$output_dir/omarchy-x11-resize"
+
 printf 'Built host helpers in %s\n' "$output_dir"
